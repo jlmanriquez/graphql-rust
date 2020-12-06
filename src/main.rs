@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate diesel;
+extern crate serde;
 
 use std::io;
 use std::sync::Arc;
@@ -13,13 +14,14 @@ use juniper::http::GraphQLRequest;
 
 use crate::graphql_schema::{create_schema, Schema};
 
+mod auth;
+mod context;
+mod db;
 mod graphql_schema;
+mod jwt;
+mod links;
 mod schema;
 mod users;
-mod db;
-mod links;
-mod context;
-mod jwt;
 
 async fn graphiql() -> HttpResponse {
     let html = graphiql_source("http://127.0.0.1:8080/graphql");
@@ -73,6 +75,7 @@ async fn main() -> io::Result<()> {
                     .max_age(3600)
                     .finish(),
             )
+            .wrap(auth::Auth {})
             .service(web::resource("/graphql").route(web::post().to(graphql)))
             .service(web::resource("/graphiql").route(web::get().to(graphiql)))
     })

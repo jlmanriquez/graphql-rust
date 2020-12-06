@@ -1,5 +1,5 @@
 use chrono::Duration;
-use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
 
@@ -32,11 +32,12 @@ pub fn generate_token(username: &str) -> Result<String, String> {
     Ok(token)
 }
 
-fn parse_token(token_str: &str) -> Result<String, String> {
+pub fn parse_token(token_str: &str) -> Result<String, String> {
     let token = decode::<Claims>(
         token_str,
         &DecodingKey::from_secret(SECRET_KEY),
-        &Validation::default());
+        &Validation::default(),
+    );
 
     match token {
         Ok(data) => Ok(data.claims.sub),

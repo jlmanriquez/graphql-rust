@@ -1,9 +1,9 @@
-use juniper::FieldResult;
 use juniper::RootNode;
+use juniper::{FieldError, FieldResult};
 
 use juniper::{GraphQLInputObject, GraphQLObject};
 
-use crate::{context::GraphQLContext, links};
+use crate::{context::GraphQLContext, jwt, links, users};
 
 #[derive(GraphQLObject)]
 pub struct Link {
@@ -81,6 +81,30 @@ impl MutationRoot {
             address: input.address,
             user: None,
         })
+    }
+
+    #[graphql(name = "createUser")]
+    fn create_user(context: &GraphQLContext, input: NewUser) -> FieldResult<String> {
+        users::models::create(&context.pool.get().unwrap(), &input)?;
+        let token = jwt::generate_token(input.username.as_str())?;
+        Ok(token)
+    }
+
+    fn login(context: &GraphQLContext, input: Login) -> FieldResult<String> {
+        let correct = users::models::authenticate(&context.pool.get().unwrap(), &input);
+        if !correct {
+            return Err(FieldError::from("wrong username or password"));
+        }
+        Ok(jwt::generate_token(&input.username)?)
+    }
+
+    #[graphql(name = "refreshToken")]
+    fn refresh_token(context: &GraphQLContext, input: RefreshTokenInput) -> FieldResult<String> {
+        let username = match jwt::parse_token(&input.token) {
+            Ok(username) => username,
+            _ => return Err(FieldError::from(String::from("access denied"))),
+        };
+        Ok(jwt::generate_token(&username)?)
     }
 }
 
