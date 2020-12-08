@@ -6,7 +6,7 @@ use std::io;
 use std::sync::Arc;
 
 use actix_cors::Cors;
-use actix_web::{middleware, web, App, Error, HttpResponse, HttpServer};
+use actix_web::{middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use context::GraphQLContext;
 use db::Pool;
 use juniper::http::graphiql::graphiql_source;
@@ -35,9 +35,19 @@ async fn graphql(
     pool: web::Data<Pool>,
     st: web::Data<Arc<Schema>>,
     data: web::Json<GraphQLRequest>,
+    request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
+    let authenticated_user = match request.head().extensions().get::<graphql_schema::User>() {
+        Some(usr) => Some(graphql_schema::User {
+            id: usr.id,
+            name: usr.name.clone(),
+        }),
+        _ => None,
+    };
+
     let ctx = GraphQLContext {
         pool: pool.get_ref().to_owned(),
+        user: authenticated_user,
     };
 
     let user = web::block(move || {

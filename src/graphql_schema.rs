@@ -13,7 +13,7 @@ pub struct Link {
     pub user: Option<User>,
 }
 
-#[derive(GraphQLObject)]
+#[derive(Debug, GraphQLObject)]
 pub struct User {
     pub id: i32,
     pub name: String,
@@ -28,6 +28,7 @@ pub struct Query {
 pub struct NewLink {
     pub title: String,
     pub address: String,
+    pub user_id: Option<i32>,
 }
 
 #[derive(GraphQLInputObject)]
@@ -72,14 +73,22 @@ pub struct MutationRoot;
 #[juniper::object(Context = GraphQLContext)]
 impl MutationRoot {
     #[graphql(name = "createLink")]
-    fn create_link(context: &GraphQLContext, input: NewLink) -> FieldResult<Link> {
+    fn create_link(context: &GraphQLContext, mut input: NewLink) -> FieldResult<Link> {
+        if context.user.is_none() {
+            return Err(FieldError::from("access denied"));
+        }
+
         let new_id = links::models::save(&context.pool.get().unwrap(), &input).unwrap();
+        let authenticated_usr = context.user.as_ref().map(|u| User {
+            id: u.id,
+            name: u.name.clone(),
+        });
 
         Ok(Link {
             id: new_id,
             title: input.title,
             address: input.address,
-            user: None,
+            user: authenticated_usr,
         })
     }
 

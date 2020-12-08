@@ -1,5 +1,5 @@
 pub mod models {
-    use crate::{graphql_schema::NewLink, schema::links};
+    use crate::{graphql_schema, schema::links};
     use diesel::prelude::*;
     use diesel::PgConnection;
 
@@ -12,11 +12,12 @@ pub mod models {
         pub user_id: Option<i32>,
     }
 
-    pub fn save(conn: &PgConnection, input: &NewLink) -> Result<i32, &'static str> {
+    pub fn save(conn: &PgConnection, input: &graphql_schema::NewLink) -> Result<i32, &'static str> {
         let result = diesel::insert_into(links::table)
             .values((
                 links::title.eq(input.title.as_str()),
                 links::address.eq(input.address.as_str()),
+                links::userid.eq(input.user_id),
             ))
             .returning(links::id)
             .get_result::<i32>(conn);

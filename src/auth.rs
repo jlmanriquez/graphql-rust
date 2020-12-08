@@ -11,7 +11,7 @@ use futures::{
 };
 use serde::Serialize;
 
-use crate::{db::Pool, jwt, users::models::get_userid_by_username};
+use crate::{db::Pool, graphql_schema, jwt, users::models::get_userid_by_username};
 
 pub struct Auth {}
 
@@ -62,39 +62,50 @@ where
             .get()
             .unwrap();
 
-        let mut authenticated_err: Option<String> = None;
-        // Siguiendo el ejemplo de https://www.howtographql.com/ en caso de no venir
-        // el header de autenticacion se deja pasar.
         if let Some(header) = req.headers().get("Authorization") {
-            let bearer = header.to_str().unwrap();
-            let token = bearer.trim_start_matches("Bearer ");
+            let token = header.to_str().unwrap().trim_start_matches("Bearer ");
 
             if let Ok(username) = jwt::parse_token(token) {
-                match get_userid_by_username(&pool, &username) {
-                    Ok(_) => {}
-                    _ => authenticated_err = Some(String::from("wrong user or password")),
+                if let Ok(user_id) = get_userid_by_username(&pool, &username) {
+                    let user = graphql_schema::User {
+                        id: user_id,
+                        name: username,
+                    };
+                    req.head().extensions_mut().insert(user);
+                    let fut = self.service.call(req);
+                    return Box::pin(async move {
+                        let res = fut.await?;
+                        Ok(res)
+                    });
+                } else {
+                    return Box::pin(async move {
+                        Ok(req.into_response(
+                            HttpResponse::Unauthorized()
+                                .json(AuthMessage {
+                                    message: String::from("wrong user or password"),
+                                })
+                                .into_body(),
+                        ))
+                    });
                 }
             } else {
-                authenticated_err = Some(String::from("invalid token"));
+                return Box::pin(async move {
+                    Ok(req.into_response(
+                        HttpResponse::Forbidden()
+                            .json(AuthMessage {
+                                message: String::from("invalid token"),
+                            })
+                            .into_body(),
+                    ))
+                });
             }
         }
 
-        match authenticated_err {
-            Some(err_msg) => Box::pin(async move {
-                Ok(req.into_response(
-                    HttpResponse::Unauthorized()
-                        .json(AuthMessage { message: err_msg })
-                        .into_body(),
-                ))
-            }),
-            None => {
-                let fut = self.service.call(req);
-                Box::pin(async move {
-                    let res = fut.await?;
-                    Ok(res)
-                })
-            }
-        }
+        let fut = self.service.call(req);
+        Box::pin(async move {
+            let res = fut.await?;
+            Ok(res)
+        })
     }
 }
 
