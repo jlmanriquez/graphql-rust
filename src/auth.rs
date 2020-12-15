@@ -78,7 +78,7 @@ where
                         Ok(res)
                     })
                 } else {
-                    Box::pin(async move || {
+                    Box::pin(async move {
                         Ok(req.into_response(
                             HttpResponse::Unauthorized()
                                 .json(AuthMessage {
