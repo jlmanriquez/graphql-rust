@@ -65,7 +65,7 @@ where
         if let Some(header) = req.headers().get("Authorization") {
             let token = header.to_str().unwrap().trim_start_matches("Bearer ");
 
-            if let Ok(username) = jwt::parse_token(token) {
+            return if let Ok(username) = jwt::parse_token(token) {
                 if let Ok(user_id) = get_userid_by_username(&pool, &username) {
                     let user = graphql_schema::User {
                         id: user_id,
@@ -73,12 +73,12 @@ where
                     };
                     req.head().extensions_mut().insert(user);
                     let fut = self.service.call(req);
-                    return Box::pin(async move {
+                    Box::pin(async move {
                         let res = fut.await?;
                         Ok(res)
-                    });
+                    })
                 } else {
-                    return Box::pin(async move {
+                    Box::pin(async move || {
                         Ok(req.into_response(
                             HttpResponse::Unauthorized()
                                 .json(AuthMessage {
@@ -86,10 +86,10 @@ where
                                 })
                                 .into_body(),
                         ))
-                    });
+                    })
                 }
             } else {
-                return Box::pin(async move {
+                Box::pin(async move {
                     Ok(req.into_response(
                         HttpResponse::Forbidden()
                             .json(AuthMessage {
@@ -97,8 +97,8 @@ where
                             })
                             .into_body(),
                     ))
-                });
-            }
+                })
+            };
         }
 
         let fut = self.service.call(req);
