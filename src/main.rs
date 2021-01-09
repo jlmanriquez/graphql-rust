@@ -38,10 +38,7 @@ async fn graphql(
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     let authenticated_user = match request.head().extensions().get::<graphql_schema::User>() {
-        Some(usr) => Some(graphql_schema::User {
-            id: usr.id,
-            name: usr.name.clone(),
-        }),
+        Some(usr) => Some((*usr).to_owned()),
         _ => None,
     };
 
